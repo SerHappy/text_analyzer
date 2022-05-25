@@ -1,5 +1,6 @@
 import re
 import pymorphy2
+import nltk
 
 
 def read_text(filename: str) -> str:
@@ -9,19 +10,18 @@ def read_text(filename: str) -> str:
         for line in infile:
             if line.strip() != "":
                 text += line.strip() + " "
-    print(text)
     return text
 
 
-def _delete_punc_marks_and_artif(text: str) -> list:
+def delete_punc_marks_and_artif(text: str) -> list:
     """Удаляет знаки препинания и артефакты из списка слов. Возвращает преобразованный список"""
-    chars = '.,;:!«»?—()-"_/'
+    chars = '.,;:!«»?—()–-"_/©'
     for i in chars:
         text = text.replace(i, " ")
     return text.split()
 
 
-def _delete_stopwords(list_of_words: list) -> list:
+def delete_stopwords(list_of_words: list) -> list:
     """Удаляет стоп слова из списка слов. Возвращает преобразованный список"""
     stopwords = [
         "джордж",
@@ -196,9 +196,9 @@ def _delete_stopwords(list_of_words: list) -> list:
 
 def get_words(text: str) -> list:
     """Возвращает список слов из строки text"""
-    temp_list = _delete_punc_marks_and_artif(text)
+    temp_list = delete_punc_marks_and_artif(text)
     lower_temp_list = list((map(lambda x: x.lower(), temp_list)))
-    return _delete_stopwords(lower_temp_list)
+    return delete_stopwords(lower_temp_list)
 
 
 def create_freq_dict(list_of_words: list) -> dict:
@@ -216,52 +216,51 @@ def sort_dict_by_value(dictionary: dict, reversed_order: bool) -> dict:
     )
 
 
-def get_sentences(text) -> list:
+def get_sentences(text: str) -> list:
     """Возвращает список предложений"""
     return re.split(r' *[\.\?!][\'"\)\]]* *', text)
 
 
-def get_all_length_sentences(text):
+def get_sentences_with_nltk(text: str) -> list:
+    """Возвращает список предложений с помощью библиотеки nltk"""
+    return nltk.tokenize.sent_tokenize(text)
+
+
+def total_sentence_length(text: str) -> int:
     """Возвращает общую длину всех предложений"""
-    list_of_sentences = get_sentences(text)
+    list_of_sentences = get_sentences_with_nltk(text)
     length = 0
     for sentence in list_of_sentences:
         length += len(sentence)
     return length
 
 
-def average_sentence_length(text):
+def average_sentence_length(text: str) -> float:
     """Возвращает среднюю длину предложения"""
-    return get_all_length_sentences(text) / get_number_of_sentences(text)
+    return total_sentence_length(text) / len(get_sentences_with_nltk(text))
 
 
-def get_number_of_sentences(text: str) -> int:
-    """Возвращает количество предложений в text"""
-    return len(re.split(r' *[\.\?!][\'"\)\]]* *', text))
-
-
-def get_number_of_punctuation_marks(text):
+def get_number_of_punctuation_marks(text: str) -> int:
     """Возвращает количество знаков препинания в text"""
     punctuation_marks = ".,;:!«»?—()-\"'"
     amount_of_punc_marks = 0
     for i in text:
         if i in punctuation_marks:
             amount_of_punc_marks += 1
-
     return amount_of_punc_marks
 
 
-def get_all_length(words: list) -> int:
+def total_word_length(list_of_words: list) -> int:
     """Возвращает общую длину всех слов"""
     length = 0
-    for word in words:
+    for word in list_of_words:
         length += len(word)
     return length
 
 
-def average_word_length(amount_words):
+def average_word_length(list_of_words: list) -> float:
     """Возвращает среднюю длину слова"""
-    return get_all_length(amount_words) / len(amount_words)
+    return total_word_length(list_of_words) / len(list_of_words)
 
 
 def print_dict(
@@ -275,116 +274,138 @@ def print_dict(
         print(f"{indent}{key} - {value}")
 
 
-def get_clear_text(words):
-    """Возвращает строку, состоящюю из words, разделенных пробелом"""
-    return " ".join(words)
+def concatenate_words(list_of_words: list) -> str:
+    """Возвращает строку, состоящюю из list_of_words, разделенных пробелами"""
+    return " ".join(list_of_words)
 
 
-def write_to_file(dict, filename):
+def write_to_file(dict: dict, filename: str) -> None:
     """Записывает пары ключ:значение из словаря dict в файл filename"""
     with open(filename, "w") as outfile:
         for key, value in dict.items():
             outfile.write(f"{key} - {value}\n")
 
 
-def normalize_words(morph, words):
-    """Приводит слова words к нормальному виду. Возвращает список преобразованных слов"""
+def normalize_words(morph: pymorphy2.MorphAnalyzer, list_of_words: list) -> list:
+    """Приводит слова list_of_words к нормальному виду. Возвращает список преобразованных слов"""
     list_of_nomalized_words = []
-    for word in words:
+    for word in list_of_words:
         p = morph.parse(word)[0]
         list_of_nomalized_words.append(p.normal_form)
     return list_of_nomalized_words
 
 
-def print_word_parse(morph: pymorphy2.MorphAnalyzer, dict, start, end):
-    """Выводит подробную статистику по слову из словаря dict с индекса start до end"""
+def print_morph_parsing(
+    morph: pymorphy2.MorphAnalyzer,
+    dict: dict,
+    start_index: int,
+    end_index: int,
+    intent="",
+) -> None:
+    """Выводит подробную статистику по словам из словаря dict с индекса start_index до end_index"""
+    print(f"\tПодробная статистика по словам с индекса {start_index} по {end_index}:")
     for key, value in dict.items():
-        if start > end:
+        if start_index > end_index:
             break
-        start += 1
+        start_index += 1
         p = morph.parse(key)[0]
-        print(f"Слово: {key}. Встречается {value} раз")
-        print(f"\tЧасть речи: {morph.lat2cyr(p.tag.POS)}")
+        print(f"{intent}Слово: {key}. Встречается {value} раз/раза")
+        print(f"{intent*2}Часть речи: {morph.lat2cyr(p.tag.POS)}")
         if p.tag.animacy is not None:
-            print(f"\tОдушевленность: {morph.lat2cyr(p.tag.animacy)}")
+            print(f"{intent*2}Одушевленность: {morph.lat2cyr(p.tag.animacy)}")
         if p.tag.case is not None:
-            print(f"\tПадеж: {morph.lat2cyr(p.tag.case)}")
+            print(f"{intent*2}Падеж: {morph.lat2cyr(p.tag.case)}")
         if p.tag.gender is not None:
-            print(f"\tРод (мужской, женский, средний): {morph.lat2cyr(p.tag.gender)}")
+            print(
+                f"{intent*2}Род (мужской, женский, средний): {morph.lat2cyr(p.tag.gender)}"
+            )
         if p.tag.number is not None:
             print(
-                f"\tЧисло (единственное, множественное): {morph.lat2cyr(p.tag.number)}"
+                f"{intent*2}Число (единственное, множественное): {morph.lat2cyr(p.tag.number)}"
             )
         if p.tag.aspect is not None:
             print(
-                f"\tВид (совершенный или несовершенный): {morph.lat2cyr(p.tag.aspect)}"
+                f"{intent*2}Вид (совершенный или несовершенный): {morph.lat2cyr(p.tag.aspect)}"
             )
         if p.tag.mood is not None:
             print(
-                f"\tНаклонение (повелительное, изъявительное): {morph.lat2cyr(p.tag.mood)}"
+                f"{intent*2}tНаклонение (повелительное, изъявительное): {morph.lat2cyr(p.tag.mood)}"
             )
         if p.tag.person is not None:
-            print(f"\tЛицо (1, 2, 3): {morph.lat2cyr(p.tag.person)}")
+            print(f"{intent*2}Лицо (1, 2, 3): {morph.lat2cyr(p.tag.person)}")
         if p.tag.tense is not None:
             print(
-                f"\tВремя (настоящее, прошедшее, будущее): {morph.lat2cyr(p.tag.tense)}"
+                f"{intent*2}Время (настоящее, прошедшее, будущее): {morph.lat2cyr(p.tag.tense)}"
             )
         if p.tag.transitivity is not None:
             print(
-                f"\tПереходность (переходный, непереходный): {morph.lat2cyr(p.tag.transitivity)}"
+                f"{intent*2}Переходность (переходный, непереходный): {morph.lat2cyr(p.tag.transitivity)}"
             )
         if p.tag.voice is not None:
-            print(f"\tЗалог (действительный, страдательный): {morph(p.tag.voice)}")
+            print(
+                f"{intent*2}Залог (действительный, страдательный): {morph(p.tag.voice)}"
+            )
 
 
-def print_statistic(text):
+def print_statistic(text: str) -> None:
     """Выводит общую статистику по тексту"""
-    amount_words = get_words(text)
+    clear_words = get_words(text)
     print("Статистика по тексту:")
-    print(f"\tКоличество символов в тексте: {len(get_clear_text(amount_words))}")
-    print(f"\tКоличество слов в тексте: {len(amount_words)}")
     print(
-        f"\tСредняя длина слова составляет {round(average_word_length(amount_words), 2)} символов"
+        f"\tКоличество слов в тексте (до преобразования): {len(delete_punc_marks_and_artif(text))}"
     )
-    print(f"\tКоличество предложений в тексте: {get_number_of_sentences(text)}")
     print(
-        f"\tСредняя длина предложения составляет {round(average_sentence_length(text),2)} символов"
+        f"\tКоличество знаков препинания (до преобразования): {get_number_of_punctuation_marks(text)}"
     )
-    print(f"\tКоличество знаков препинания: {get_number_of_punctuation_marks(text)}")
-    freq_dict = create_freq_dict(amount_words)
+    print(f"\tКоличество символов в тексте: {len(concatenate_words(clear_words))}")
+    print(f"\tКоличество слов в тексте: {len(clear_words)}")
+    print(
+        f"\tСредняя длина слова составляет {round(average_word_length(clear_words), 2)} символов"
+    )
+    print(f"\tКоличество предложений в тексте: {len(get_sentences(text))}")
+    print(
+        f"\tСредняя длина предложения составляет {round(average_sentence_length(text), 2)} символов"
+    )
+    freq_dict = create_freq_dict(clear_words)
+    print(f"\tКоличество различных слов в тексте: {len(freq_dict)}")
+    print(f"\tСамые частотные слова (топ 10):")
     sorted_freq_dict = sort_dict_by_value(freq_dict, True)
-    print(f"\tСамые частотные слова:")
     print_dict(sorted_freq_dict, 0, 10, "\t\t")
 
 
-def print_morphy_statistic(text):
+def write_freq_words(text: str, filename: str) -> None:
+    """Составляет словарь частотности и вызывает функцию для записи статистики в файл filename"""
+    clear_words = get_words(text)
+    freq_dict = create_freq_dict(clear_words)
+    sorted_freq_dict = sort_dict_by_value(freq_dict, True)
+    write_to_file(sorted_freq_dict, filename)
+
+
+def print_morphy_statistic(text: str) -> None:
+    """Выводит статистику по нормализованному тексту"""
     morph = pymorphy2.MorphAnalyzer()
-    amount_words = get_words(text)
-    nomalized_words = normalize_words(morph, amount_words)
+    clear_words = get_words(text)
+    nomalized_words = normalize_words(morph, clear_words)
     print("Статистика по нормализованному тексту:")
     print(f"\tКоличество слов в тексте: {len(nomalized_words)}")
     print(
         f"\tСредняя длина слова составляет {round(average_word_length(nomalized_words), 2)} символов"
     )
     freq_dict = create_freq_dict(nomalized_words)
+    print(f"\tКоличество различных слов в нормализованном тексте: {len(freq_dict)}")
+    print(f"\tСамые частотные слова (топ 10):")
     sorted_freq_dict = sort_dict_by_value(freq_dict, True)
-    print(f"\tСамые частотные слова:")
     print_dict(sorted_freq_dict, 0, 10, "\t\t")
-    print_word_parse(morph, sorted_freq_dict, 0, 10)
+    print_morph_parsing(morph, sorted_freq_dict, 0, 10, "\t\t")
 
 
-def write_freq_words(text):
-    amount_words = get_words(text)
-    freq_dict = create_freq_dict(amount_words)
-    sorted_freq_dict = sort_dict_by_value(freq_dict, False)
-    write_to_file(sorted_freq_dict, "output.txt")
-
-
-def main():
+def main() -> None:
     """Главный метод программы"""
-    text = read_text("text_sem9.txt")
+    nltk.download("popular")
+    filename = "crime_and_punishment"
+    text = read_text(f"texts/{filename}.txt")
     print_statistic(text)
-    write_freq_words(text)
+    write_freq_words(text, f"freq/{filename}_freq.txt")
     print_morphy_statistic(text)
 
 
